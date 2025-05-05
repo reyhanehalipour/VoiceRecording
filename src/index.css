@@ -1,4 +1,9 @@
-
+@font-face {
+  font-family: 'iranYekan';
+  src: url('/src/assets/fonts/Qs_Iranyekan.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
 
 a {
   font-weight: 500;
@@ -18,7 +23,7 @@ body {
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
-
+ font-family: 'iranYekan' !important;
   background-image: url('../public/bg.png'); /* مسیر عکس */
   background-size: cover;
   background-position: center;

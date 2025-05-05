@@ -1,7 +1,8 @@
 import React, { useRef, useState, useEffect } from "react";
 import { socket } from "../socket/socketconfig";
-import { Microphone2, MicrophoneSlash } from "iconsax-reactjs";
+import { Clock, Microphone2, MicrophoneSlash, User, VolumeHigh } from "iconsax-reactjs";
 
+import AudioPlayer from "./Voice";
 const AudioStreamer = () => {
   const [transcription, setTranscription] = useState("");
   const [transcripted, setTranscripted] = useState("");
@@ -10,6 +11,7 @@ const AudioStreamer = () => {
   const [audioAddress, setAudioAddress] = useState("");
   const [username, setUsername] = useState("");
   const [fileNumber, setFileNumber] = useState("");
+  const [timer, setTimer] = useState(0); // تایمر اضافه شده
 
   const audioContextRef = useRef(null);
   const mediaStreamRef = useRef(null);
@@ -17,6 +19,7 @@ const AudioStreamer = () => {
   const bufferRef = useRef([]);
   const canvasRef = useRef(null);
   const workletNodeRef = useRef(null);
+  const timerRef = useRef(null); // تایمر برای جلوگیری از ایجاد تایمر دوباره
 
   useEffect(() => {
     const storedUsername = localStorage.getItem("username");
@@ -59,6 +62,12 @@ const AudioStreamer = () => {
 
       source.connect(workletNode).connect(audioContext.destination);
       setIsRecording(true);
+
+      // شروع تایمر
+      setTimer(0);
+      timerRef.current = setInterval(() => {
+        setTimer((prev) => prev + 1); // هر ثانیه تایمر را یک واحد افزایش می‌دهد
+      }, 1000);
     } catch (err) {
       console.error("Error accessing microphone:", err);
     }
@@ -79,6 +88,10 @@ const AudioStreamer = () => {
     if (workletNodeRef.current) {
       workletNodeRef.current.port.onmessage = null;
     }
+
+    // توقف تایمر
+    clearInterval(timerRef.current);
+
 
     setTranscription("");
     setIsRecording(false);
@@ -115,29 +128,30 @@ const AudioStreamer = () => {
   const drawWaveform = (dataArray) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
+  
     const ctx = canvas.getContext("2d");
     const width = canvas.width;
     const height = canvas.height;
-
+  
     ctx.clearRect(0, 0, width, height);
-
+  
+    // گرادینت پررنگ‌تر
     const gradient = ctx.createLinearGradient(0, 0, width, 0);
-    gradient.addColorStop(0, "#00f0ff");
-    gradient.addColorStop(0.5, "#00ff9d");
-    gradient.addColorStop(1, "#00c2ff");
-
+    gradient.addColorStop(0, "#00e0ff");      // آبی روشن پررنگ‌تر
+    gradient.addColorStop(0.5, "#00ff66");    // سبز نئونی
+    gradient.addColorStop(1, "#00aaff");      // آبی آسمونی شارپ
+  
     ctx.beginPath();
     ctx.strokeStyle = gradient;
-    ctx.lineWidth = 2;
-
+    ctx.lineWidth = 3; // ضخیم‌تر برای تأکید بیشتر
+  
     const sliceWidth = width / dataArray.length;
     let x = 0;
-
+  
     for (let i = 0; i < dataArray.length; i++) {
       const v = dataArray[i] / 255;
       const y = (1 - v) * height * 0.5 + height * 0.25;
-
+  
       if (i === 0) {
         ctx.moveTo(x, y);
       } else {
@@ -145,20 +159,28 @@ const AudioStreamer = () => {
       }
       x += sliceWidth;
     }
-
+  
     ctx.stroke();
-
-    // دایره انتهایی موج
+  
+    // دایره انتهایی با رنگ قوی‌تر
     const endY = (1 - dataArray[dataArray.length - 1] / 255) * height * 0.5 + height * 0.25;
     ctx.beginPath();
     ctx.arc(width - 5, endY, 4, 0, 2 * Math.PI);
-    ctx.fillStyle = "#00f0ff";
+    ctx.fillStyle = "#00ffff"; // فیروزه‌ای نئونی
     ctx.fill();
+  };
+  
+
+  // تبدیل ثانیه به دقیقه و ثانیه
+  const formatTime = (timeInSeconds) => {
+    const minutes = Math.floor(timeInSeconds / 60);
+    const seconds = timeInSeconds % 60;
+    return `${minutes}:${seconds < 10 ? '0' + seconds : seconds}`;
   };
 
   return (
-    <div className="bg-white rounded-lg w-full h-full shadow-lg flex flex-col items-center justify-center p-5">
-      <div className="mb-4 flex gap-[20px] items-center justify-between">
+    <div className="bg-white bg-opacity-80 rounded-lg w-full h-[600px] shadow-lg flex flex-col items-center justify-center px-5 ">
+      <div className="mb-4 flex w-full gap-[20px] items-center justify-between">
         <div className="flex gap-2">
           <p className="text-blue-700 font-bold">{fileNumber || "شماره پرونده وجود ندارد"}</p>
           <p>: شماره پرونده</p>
@@ -167,61 +189,56 @@ const AudioStreamer = () => {
         <div className="flex gap-2">
           <p className="text-blue-700 font-bold">{username || "نام وجود ندارد"}</p>
           <p>: نام و نام خانوادگی</p>
+          <User/>
         </div>
       </div>
 
-      {recordingStat === 0 && (
-        <div className="p-4 flex flex-col items-center justify-center gap-4">
-          <div onClick={startRecording}>
-            {isRecording ? (
-              <div className="flex flex-col items-center justify-center gap-1">
-                <Microphone2 size={50} className="text-green-600 animate-pulse" />
-                <p className="text-green-600">درحال ضبط</p>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center gap-1 cursor-pointer">
-                <MicrophoneSlash size={50} />
-                <p className="font-[14px]">برای شروع بلندگو را فشار دهید</p>
-              </div>
-            )}
-          </div>
-
-          <div className="text-center">
-            <canvas
-              ref={canvasRef}
-              width={500}
-              height={80}
-              
-            />
-          </div>
-
-          {isRecording && (
-            <div
-              onClick={stopRecording}
-              className="cursor-pointer text-red-600 font-bold"
-            >
-              پایان ضبط
+      <div className="p-4 flex  items-center justify-center gap-4">
+        <div onClick={startRecording}>
+          {isRecording ? (
+            <div className="flex flex-col items-center justify-center bg-blue-500 rounded-full w-[80px] h-[80px] gap-1">
+              <Microphone2 size={50} className="text-white " />
+            </div>
+          ) : (
+            <div className="flex flex-col bg-blue-500 rounded-full w-[80px] h-[80px] items-center justify-center gap-1 cursor-pointer">
+              <MicrophoneSlash size={50} className="text-white" />
             </div>
           )}
         </div>
-      )}
+
+        <div className="text-center">
+          <canvas ref={canvasRef} width={500} height={80} />
+        </div>
+      </div>
+
+      <div className="flex items-center w-full px-5 justify-between h-[60px]">
+       
+          <div className="mt-3 w-[80px] h-[40px] rounded-lg shadow-lg bg-red-600 text-white flex items-center justify-center gap-1">
+          <Clock/>
+            <h3>{formatTime(timer)}</h3>
+      
+          </div>
+      
+
+        {isRecording && (
+          <div onClick={stopRecording} className="cursor-pointer text-red-600 font-bold">
+            پایان ضبط
+          </div>
+        )}
+      </div>
 
       <textarea
         rows={5}
         value={transcripted + transcription}
         onChange={(e) => setTranscripted(e.target.value)}
-        className="mt-4 w-full h-[100px] p-2 border rounded bg-blue-200"
+        className="mt-4 w-full h-[200px] p-2 border rounded-lg shadow-lg bg-blue-200 text-right"
         disabled={isRecording}
+        placeholder="متن صوت درحال دریافت"
       />
 
-      {audioAddress && (
-        <div className="mt-4">
-          <audio controls>
-            <source src={audioAddress} type="audio/wav" />
-            مرورگر شما از پخش صدا پشتیبانی نمی‌کند.
-          </audio>
-        </div>
-      )}
+<AudioPlayer audioAddress={audioAddress } />
+
+   
     </div>
   );
 };

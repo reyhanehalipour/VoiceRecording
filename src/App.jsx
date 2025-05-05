@@ -5,6 +5,7 @@ import { socket } from './socket/socketconfig';
 import AudioStreamer  from './components/AudioStreamer';
 import Connecting from './components/Connecting';
 import AuthTabs from './components/AuthTabs';
+import PageRecord from './components/PageRecord';
 
 const App = () => {
   const [isConnected, setIsConnected] = useState(socket.connected);
@@ -31,9 +32,9 @@ const App = () => {
 console.log(isConnected)
 console.log('Initial socket connected:', socket.connected);
 
-if (!isConnected) {
+/* if (!isConnected) {
   return <Connecting  />;
-}
+} */
   return (
     <div className="h-full w-full flex items-center justify-center">
       
@@ -44,7 +45,7 @@ if (!isConnected) {
             <Route path="/" element={<AuthTabs isConnected={isConnected}/>} />
 
             {/* مسیر صفحه ضبط صدا */}
-            <Route path="/recording" element={<AudioStreamer  />} />
+            <Route path="/recording" element={<PageRecord/>}/>
           </Routes>
         </div>
       </Router>

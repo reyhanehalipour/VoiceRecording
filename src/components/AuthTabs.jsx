@@ -9,12 +9,13 @@ const AuthTabs = ({isConnected}) => {
   const [activeTab, setActiveTab] = useState("login");
 
   return (
+    
     <div className="bg-white flex  flex-col items-center justify-center w-[400px] h-[480px] p-5 rounded-xl shadow-lg max-w-sm">
       {/* دکمه‌های تب */}
       <div className="flex gap-2 mb-6">
         <button
           onClick={() => setActiveTab("login")}
-          className={`px-6 py-2 flex items-center justify-center my-auto rounded-full transition-all ${
+          className={`px-6 py-2 flex items-center justify-center my-autoط rounded-full transition-all ${
             activeTab === "login"
               ? "bg-blue-500 text-white"
               : "bg-gray-200 text-gray-600"
