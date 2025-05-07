@@ -1,17 +1,18 @@
 import React, { useRef, useState, useEffect } from "react";
 import { socket } from "../socket/socketconfig";
-import { Clock, Microphone2, MicrophoneSlash, User, VolumeHigh } from "iconsax-reactjs";
-
+import { Clock, Microphone2, MicrophoneSlash, User } from "iconsax-reactjs";
+import { useUser } from "../UserContext";
 import AudioPlayer from "./Voice";
+
 const AudioStreamer = () => {
   const [transcription, setTranscription] = useState("");
   const [transcripted, setTranscripted] = useState("");
   const [recordingStat, setRecordingStat] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [audioAddress, setAudioAddress] = useState("");
-  const [username, setUsername] = useState("");
-  const [fileNumber, setFileNumber] = useState("");
-  const [timer, setTimer] = useState(0); // تایمر اضافه شده
+  const [timer, setTimer] = useState(0);
+  const { username: contextUsername } = useUser();
+  const [username, setUsername] = useState(contextUsername || "");
 
   const audioContextRef = useRef(null);
   const mediaStreamRef = useRef(null);
@@ -19,17 +20,7 @@ const AudioStreamer = () => {
   const bufferRef = useRef([]);
   const canvasRef = useRef(null);
   const workletNodeRef = useRef(null);
-  const timerRef = useRef(null); // تایمر برای جلوگیری از ایجاد تایمر دوباره
-
-  useEffect(() => {
-    const storedUsername = localStorage.getItem("username");
-    const storedFileNumber = localStorage.getItem("fileNumber");
-
-    if (storedUsername && storedFileNumber) {
-      setUsername(storedUsername);
-      setFileNumber(storedFileNumber);
-    }
-  }, []);
+  const timerRef = useRef(null);
 
   const startRecording = async () => {
     try {
@@ -48,9 +39,16 @@ const AudioStreamer = () => {
       workletNodeRef.current = workletNode;
 
       workletNode.port.onmessage = (event) => {
-        drawWaveform(event.data);
-        const audioData = event.data;
-        bufferRef.current.push(...audioData);
+        const int16Data = new Int16Array(event.data);
+
+        // Normalize to [0, 255] for visualization
+        const normalizedData = int16Data.map((n) =>
+          Math.max(0, Math.min(255, Math.floor((n + 32768) / 256)))
+        );
+        drawWaveform(normalizedData);
+
+        bufferRef.current.push(...int16Data);
+        console.log("📦 buffer length after push:", bufferRef.current.length);
 
         if (bufferRef.current.length >= 1024 * 16) {
           const chunk = bufferRef.current.slice(0, 1024 * 16);
@@ -63,10 +61,9 @@ const AudioStreamer = () => {
       source.connect(workletNode).connect(audioContext.destination);
       setIsRecording(true);
 
-      // شروع تایمر
       setTimer(0);
       timerRef.current = setInterval(() => {
-        setTimer((prev) => prev + 1); // هر ثانیه تایمر را یک واحد افزایش می‌دهد
+        setTimer((prev) => prev + 1);
       }, 1000);
     } catch (err) {
       console.error("Error accessing microphone:", err);
@@ -74,30 +71,39 @@ const AudioStreamer = () => {
   };
 
   const stopRecording = () => {
-    socket.emit("audio_chunk", "<stop>", "15");
-    setRecordingStat(1);
-    setTranscripted((prev) => prev + " " + transcription);
+    try {
+      socket.emit("audio_chunk", "<stop>", "15");
 
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      setRecordingStat(1);
+      setTranscripted((prev) => prev + " " + transcription);
+
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+
+      if (workletNodeRef.current) {
+        workletNodeRef.current.port.onmessage = null;
+      }
+
+      clearInterval(timerRef.current);
+
+      console.log("📊 Final buffer length before saving:", bufferRef.current.length);
+      console.log("🎧 First few samples:", bufferRef.current.slice(0, 10));
+
+      const wavBlob = encodeWAV(Int16Array.from(bufferRef.current));
+      const url = URL.createObjectURL(wavBlob);
+      setAudioAddress(url);
+
+      setTranscription("");
+      setIsRecording(false);
+      bufferRef.current = [];
+    } catch (error) {
+      console.error("❌ خطا هنگام توقف ضبط:", error);
     }
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-    }
-
-    if (workletNodeRef.current) {
-      workletNodeRef.current.port.onmessage = null;
-    }
-
-    // توقف تایمر
-    clearInterval(timerRef.current);
-
-
-    setTranscription("");
-    setIsRecording(false);
-    bufferRef.current = [];
-
-    socket.emit("get_audio_file", "15");
   };
 
   useEffect(() => {
@@ -116,42 +122,38 @@ const AudioStreamer = () => {
       }
     });
 
-    socket.on("audiofile", (data) => {
-      if (data?.text) {
-        const fileUrl = "http://localhost:3500/tmp/" + data.text;
-        setAudioAddress(fileUrl);
-      }
-    });
+    // رسم طول موج پیش‌فرض (حتی زمانی که ضبط فعال نیست)
+    const defaultWaveform = new Array(256).fill(0).map(() => Math.random() * 255);
+    drawWaveform(defaultWaveform);
+
   }, []);
 
-  // 🎨 نسخه‌ی جدید و خلاقانه‌ی waveform
-  const drawWaveform = (dataArray) => {
+  const drawWaveform = (dataArray = []) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-  
+
     const ctx = canvas.getContext("2d");
     const width = canvas.width;
     const height = canvas.height;
-  
+
     ctx.clearRect(0, 0, width, height);
-  
-    // گرادینت پررنگ‌تر
+
     const gradient = ctx.createLinearGradient(0, 0, width, 0);
-    gradient.addColorStop(0, "#00e0ff");      // آبی روشن پررنگ‌تر
-    gradient.addColorStop(0.5, "#00ff66");    // سبز نئونی
-    gradient.addColorStop(1, "#00aaff");      // آبی آسمونی شارپ
-  
+    gradient.addColorStop(0, "#00e0ff");
+    gradient.addColorStop(0.5, "#00ff66");
+    gradient.addColorStop(1, "#00aaff");
+
     ctx.beginPath();
     ctx.strokeStyle = gradient;
-    ctx.lineWidth = 3; // ضخیم‌تر برای تأکید بیشتر
-  
+    ctx.lineWidth = 3;
+
     const sliceWidth = width / dataArray.length;
     let x = 0;
-  
+
     for (let i = 0; i < dataArray.length; i++) {
       const v = dataArray[i] / 255;
       const y = (1 - v) * height * 0.5 + height * 0.25;
-  
+
       if (i === 0) {
         ctx.moveTo(x, y);
       } else {
@@ -159,41 +161,73 @@ const AudioStreamer = () => {
       }
       x += sliceWidth;
     }
-  
+
     ctx.stroke();
-  
-    // دایره انتهایی با رنگ قوی‌تر
-    const endY = (1 - dataArray[dataArray.length - 1] / 255) * height * 0.5 + height * 0.25;
+
+    const endY =
+      (1 - dataArray[dataArray.length - 1] / 255) * height * 0.5 + height * 0.25;
     ctx.beginPath();
     ctx.arc(width - 5, endY, 4, 0, 2 * Math.PI);
-    ctx.fillStyle = "#00ffff"; // فیروزه‌ای نئونی
+    ctx.fillStyle = "#00ffff";
     ctx.fill();
   };
-  
 
-  // تبدیل ثانیه به دقیقه و ثانیه
+  const encodeWAV = (samples, sampleRate = 16000) => {
+    const buffer = new ArrayBuffer(44 + samples.length * 2);
+    const view = new DataView(buffer);
+
+    const writeString = (view, offset, string) => {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    };
+
+    writeString(view, 0, "RIFF");
+    view.setUint32(4, 36 + samples.length * 2, true);
+    writeString(view, 8, "WAVE");
+    writeString(view, 12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeString(view, 36, "data");
+    view.setUint32(40, samples.length * 2, true);
+
+    for (let i = 0; i < samples.length; i++) {
+      view.setInt16(44 + i * 2, samples[i], true);
+    }
+
+    return new Blob([view], { type: "audio/wav" });
+  };
+
   const formatTime = (timeInSeconds) => {
     const minutes = Math.floor(timeInSeconds / 60);
     const seconds = timeInSeconds % 60;
-    return `${minutes}:${seconds < 10 ? '0' + seconds : seconds}`;
+    return `${minutes}:${seconds < 10 ? "0" + seconds : seconds}`;
   };
 
-  return (
-    <div className="bg-white bg-opacity-80 rounded-lg w-full h-[600px] shadow-lg flex flex-col items-center justify-center px-5 ">
-      <div className="mb-4 flex w-full gap-[20px] items-center justify-between">
-        <div className="flex gap-2">
-          <p className="text-blue-700 font-bold">{fileNumber || "شماره پرونده وجود ندارد"}</p>
-          <p>: شماره پرونده</p>
-        </div>
+  useEffect(() => {
+    if (!contextUsername) {
+      const storedUsername = sessionStorage.getItem("username");
+      if (storedUsername) {
+        setUsername(storedUsername);
+      }
+    }
+  }, [contextUsername]);
 
-        <div className="flex gap-2">
+  return (
+    <div className="bg-white bg-opacity-80 rounded-lg w-full h-[600px] shadow-lg flex flex-col items-center justify-center px-5">
+      <div className="mb-4 flex w-full gap-[20px] items-center justify-end">
+        <div className="flex gap-2 self-start">
           <p className="text-blue-700 font-bold">{username || "نام وجود ندارد"}</p>
-          <p>: نام و نام خانوادگی</p>
-          <User/>
+          <User />
         </div>
       </div>
 
-      <div className="p-4 flex  items-center justify-center gap-4">
+      <div className="p-4 flex items-center justify-center gap-4">
         <div onClick={startRecording}>
           {isRecording ? (
             <div className="flex flex-col items-center justify-center bg-blue-500 rounded-full w-[80px] h-[80px] gap-1">
@@ -212,13 +246,10 @@ const AudioStreamer = () => {
       </div>
 
       <div className="flex items-center w-full px-5 justify-between h-[60px]">
-       
-          <div className="mt-3 w-[80px] h-[40px] rounded-lg shadow-lg bg-red-600 text-white flex items-center justify-center gap-1">
-          <Clock/>
-            <h3>{formatTime(timer)}</h3>
-      
-          </div>
-      
+        <div className="mt-3 w-[80px] h-[40px] rounded-lg shadow-lg bg-red-600 text-white flex items-center justify-center gap-1">
+          <Clock />
+          <h3>{formatTime(timer)}</h3>
+        </div>
 
         {isRecording && (
           <div onClick={stopRecording} className="cursor-pointer text-red-600 font-bold">
@@ -236,9 +267,7 @@ const AudioStreamer = () => {
         placeholder="متن صوت درحال دریافت"
       />
 
-<AudioPlayer audioAddress={audioAddress } />
-
-   
+      <AudioPlayer audioAddress={audioAddress} />
     </div>
   );
 };

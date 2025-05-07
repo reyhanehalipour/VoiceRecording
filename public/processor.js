@@ -4,7 +4,7 @@ class AudioProcessor extends AudioWorkletProcessor {
     if (input.length > 0) {
       const channelData = input[0]; // داده‌های کانال اول
       const int16Data = this.convertFloat32ToInt16(channelData);
-      this.port.postMessage(int16Data); // ارسال داده‌ها به AudioWorkletNode
+      this.port.postMessage(int16Data.buffer); // ارسال داده‌ها به AudioWorkletNode به شکل buffer
     }
     return true; // ادامه پردازش
   }
@@ -21,3 +21,4 @@ class AudioProcessor extends AudioWorkletProcessor {
 }
 
 registerProcessor("audio-processor", AudioProcessor);
+

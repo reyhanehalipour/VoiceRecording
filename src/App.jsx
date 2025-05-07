@@ -5,6 +5,7 @@ import { socket } from './socket/socketconfig';
 import AudioStreamer  from './components/AudioStreamer';
 import Connecting from './components/Connecting';
 import AuthTabs from './components/AuthTabs';
+import { UserProvider } from './UserContext';
 import PageRecord from './components/PageRecord';
 
 const App = () => {
@@ -32,10 +33,11 @@ const App = () => {
 console.log(isConnected)
 console.log('Initial socket connected:', socket.connected);
 
-/* if (!isConnected) {
+ if (!isConnected) {
   return <Connecting  />;
-} */
+} 
   return (
+    <UserProvider>
     <div className="h-full w-full flex items-center justify-center">
       
       <Router>
@@ -50,6 +52,7 @@ console.log('Initial socket connected:', socket.connected);
         </div>
       </Router>
     </div>
+    </UserProvider>
   );
 };
 
