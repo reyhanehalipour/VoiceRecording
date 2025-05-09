@@ -18,6 +18,7 @@ const AudioStreamer = () => {
   const mediaStreamRef = useRef(null);
   const socketRef = useRef(null);
   const bufferRef = useRef([]);
+  const clientAudioBufferRef = useRef([]); // 🔹 بافر جدا برای نسخه کلاینت
   const canvasRef = useRef(null);
   const workletNodeRef = useRef(null);
   const timerRef = useRef(null);
@@ -41,14 +42,13 @@ const AudioStreamer = () => {
       workletNode.port.onmessage = (event) => {
         const int16Data = new Int16Array(event.data);
 
-        // Normalize to [0, 255] for visualization
         const normalizedData = int16Data.map((n) =>
           Math.max(0, Math.min(255, Math.floor((n + 32768) / 256)))
         );
         drawWaveform(normalizedData);
 
         bufferRef.current.push(...int16Data);
-        console.log("📦 buffer length after push:", bufferRef.current.length);
+        clientAudioBufferRef.current.push(...int16Data); // 🔹 ذخیره برای نسخه کلاینت
 
         if (bufferRef.current.length >= 1024 * 16) {
           const chunk = bufferRef.current.slice(0, 1024 * 16);
@@ -91,16 +91,14 @@ const AudioStreamer = () => {
 
       clearInterval(timerRef.current);
 
-      console.log("📊 Final buffer length before saving:", bufferRef.current.length);
-      console.log("🎧 First few samples:", bufferRef.current.slice(0, 10));
-
-      const wavBlob = encodeWAV(Int16Array.from(bufferRef.current));
-      const url = URL.createObjectURL(wavBlob);
-      setAudioAddress(url);
+      const clientWavBlob = encodeWAV(Int16Array.from(clientAudioBufferRef.current));
+      const clientUrl = URL.createObjectURL(clientWavBlob);
+      setAudioAddress(clientUrl); // 🔹 آدرس نسخه کلاینت
 
       setTranscription("");
       setIsRecording(false);
       bufferRef.current = [];
+      clientAudioBufferRef.current = [];
     } catch (error) {
       console.error("❌ خطا هنگام توقف ضبط:", error);
     }
@@ -122,10 +120,8 @@ const AudioStreamer = () => {
       }
     });
 
-    // رسم طول موج پیش‌فرض (حتی زمانی که ضبط فعال نیست)
     const defaultWaveform = new Array(256).fill(0).map(() => Math.random() * 255);
     drawWaveform(defaultWaveform);
-
   }, []);
 
   const drawWaveform = (dataArray = []) => {
@@ -267,7 +263,7 @@ const AudioStreamer = () => {
         placeholder="متن صوت درحال دریافت"
       />
 
-      <AudioPlayer audioAddress={audioAddress} />
+     {audioAddress && <AudioPlayer audioAddress={audioAddress} />} 
     </div>
   );
 };
