@@ -3,7 +3,7 @@ import { socket } from "../socket/socketconfig";
 import { Clock, Microphone2, MicrophoneSlash, User } from "iconsax-reactjs";
 import { useUser } from "../UserContext";
 import AudioPlayer from "./Voice";
-
+import { motion } from "framer-motion";
 const AudioStreamer = () => {
   const [transcription, setTranscription] = useState("");
   const [transcripted, setTranscripted] = useState("");
@@ -253,6 +253,13 @@ const AudioStreamer = () => {
           </div>
         )}
       </div>
+      <input
+           
+              placeholder="عنوان صوت"
+              className={`p-1 self-end bg-blue-200 h-[40px] text-right w-[150px] text-[15px] border-2 rounded-lg transition-all duration-300 focus:outline-none 
+                
+              `}
+            />
 
       <textarea
         rows={5}
@@ -262,8 +269,20 @@ const AudioStreamer = () => {
         disabled={isRecording}
         placeholder="متن صوت درحال دریافت"
       />
-
-     {audioAddress && <AudioPlayer audioAddress={audioAddress} />} 
+   
+            {audioAddress &&  <motion.div className="w-full"
+        initial={{ opacity: 0, y: 50, scale: 0.9 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        whileHover={{ scale: 1.03 }}
+        transition={{
+          duration: 1,
+          ease: [0.2, 0.8, 0.2, 1],
+          type: "spring",
+          stiffness: 100,
+        }}
+      > <AudioPlayer audioAddress={audioAddress} />  </motion.div>} 
+    
+ 
     </div>
   );
 };

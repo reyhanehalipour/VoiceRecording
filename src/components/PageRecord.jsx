@@ -24,10 +24,23 @@ export default function PageRecord() {
 
       <div className="grid gap-4">
         <History />
+        
+<motion.div className='w-full'
+        initial={{ opacity: 0, y: 50, scale: 0.9 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        whileHover={{ scale: 1.03 }}
+        transition={{
+          duration: 1,
+          ease: [0.2, 0.8, 0.2, 1],
+          type: "spring",
+          stiffness: 100,
+        }}
+      >
 
-        <button className="bg-green-600 flex items-center justify-center hover:bg-green-800 gap-1 text-white text-lg font-semibold p-4 rounded-xl shadow">
+        <button className="bg-green-600 w-full flex items-center justify-center hover:bg-green-800 gap-1 text-white text-lg font-semibold p-4 rounded-xl shadow">
           ذخیره <SaveAdd/>
         </button>
+        </motion.div>
       </div>
 
     </div>

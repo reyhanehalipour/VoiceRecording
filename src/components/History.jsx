@@ -23,7 +23,7 @@ export default function History() {
   };
 
   return (
-    <div className="p-6 bg-white bg-opacity-80 rounded-lg shadow-lg w-full max-w-md mx-auto space-y-5 border-2 border-blue-200 self-start">
+    <div className="p-6 bg-white bg-opacity-80 rounded-lg shadow-lg w-full max-w-md mx-auto  border-2 border-blue-200 self-start">
       {/* هدر */}
       <div className="flex items-center justify-center gap-2">
         <button onClick={handleClick}>
@@ -41,7 +41,7 @@ export default function History() {
       </div>
 
       {/* آیتم صوتی */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center  mt-4 gap-2">
         <div className="flex items-center justify-between bg-blue-50 border border-blue-200 p-3 rounded-2xl shadow-sm hover:shadow-md transition-all">
           <div className="flex gap-2 items-center justify-center">
             <button className="bg-blue-600 text-white p-1 rounded-full hover:bg-blue-700 transition">
